@@ -47,6 +47,11 @@ def set_global_styles():
             text-overflow: ellipsis;
         }
 
+        .expander {
+        max-width: 800px;  /* 원하는 최대 너비로 설정 */
+        width: 100%;        /* 가로 전체로 확장 */
+        }
+
         .
         </style>
         """, unsafe_allow_html=True

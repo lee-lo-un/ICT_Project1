@@ -58,10 +58,38 @@ def show_video_info(video):
     )
     temperature = random.randint(0, 100)
     st.write(f"🌡️ 온도: {temperature}")
-    st.button("감정 분석", key=f"analyze_{video['video_id']}")
+    #st.button("감정 분석", key=f"analyze_{video['video_id']}")
+    
+    # 감정 분석 버튼
+    if st.button("감정 분석", key=f"analyze_{video['video_id']}"):
+        # 댓글 가져오기
+        comments = get_and_save_comments(video['video_id'])  # 댓글을 가져오는 함수 호출
+        sentiments = [random.choice(["긍정", "부정"]) for _ in comments]  # 감정 분석 결과 예시
+
+        # 확장 가능한 영역에 댓글과 감정 분석 결과 표시
+        with st.expander("댓글 및 감정 분석 결과", expanded=True, key=f"expander_{video['video_id']}"):
+            for comment, sentiment in zip(comments, sentiments):
+                st.write(f"**댓글:** {comment} | **감정:** {sentiment}")
+
+
+
+def highlight_keywords(comment, positive_keywords, negative_keywords):
+    # 키워드와 그에 해당하는 색상을 정의
+    keyword_colors = {**dict.fromkeys(positive_keywords, 'red'), **dict.fromkeys(negative_keywords, 'blue')}
+
+    # 키워드 강조
+    for keyword, color in keyword_colors.items():
+        comment = comment.replace(keyword, f"<strong style='color:{color};'>{keyword}</strong>")
+    
+    return comment
+
 
 def show_comments(video_id):
     """대표 댓글 5개와 랜덤 감정 아이콘 표시"""
+    
+    positive_keywords = ['좋아요', '좋아', '좋다', '좋네', '사랑', '기쁘다', '기쁨', '고마워', '대박', '최고', '사랑해', '재밌어', '아름다워']
+    negative_keywords = ['싫어요', '싫어', '싫다', '싫네', '나쁜', '슬퍼', '슬픔', '아니', '최악', '화가나', '실망', '별로']
+
     comments = get_and_save_comments(video_id)
     sentiment_icons = {
         "좋다": "👍",
@@ -77,7 +105,7 @@ def show_comments(video_id):
             f"""
             <div class='comment-container'>
                 <span class='icon'>{icon}</span>
-                <div class='comment-text'>{comment}</div>
+                <div class='comment-text'>{highlight_keywords(comment, positive_keywords, negative_keywords)}</div>
             </div>
             """, unsafe_allow_html=True
         )
