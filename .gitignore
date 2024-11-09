@@ -8,3 +8,4 @@ data/
 *.pyc
 pycache/
 
+src/weight/*
