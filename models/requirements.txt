@@ -1,0 +1,11 @@
+sentencepiece>=0.1.96
+transformers  
+torch  
+pandas  
+scikit-learn  
+gluonnlp
+tqdm
+mxnet==1.9.1
+numpy==1.23
+openpyxl
+'git+https://github.com/SKTBrain/KoBERT.git#egg=kobert_tokenizer&subdirectory=kobert_hf'
