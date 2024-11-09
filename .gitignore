@@ -8,4 +8,5 @@ data/
 *.pyc
 pycache/
 
-src/weight/*
+models/weight/*
+models/weight/kobert241107.pth
