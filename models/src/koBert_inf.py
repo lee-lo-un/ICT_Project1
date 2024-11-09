@@ -15,6 +15,7 @@ import gluonnlp as nlp
 import json
 import os
 
+
 ## infer setup
 device = torch.device("cuda:0")
 tokenizer = KoBERTTokenizer.from_pretrained('skt/kobert-base-v1')
@@ -100,6 +101,7 @@ def inference(predict_sentence):
             logits = logits.detach().cpu().numpy()
 
             emotion = np.argmax(logits)
+
             if emotion == 0:
                 test_eval="fear"
             elif emotion == 1:
@@ -176,5 +178,6 @@ def main_analyze(video):
 
     # 분류된 감정을 통계낸 후 RETURN한다
     return generate_statistics(video)
+
 
 

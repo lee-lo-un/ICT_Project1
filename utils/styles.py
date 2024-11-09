@@ -47,6 +47,7 @@ def set_global_styles():
             text-overflow: ellipsis;
         }
 
+
         /* 모달 스타일 */
         #modal {
             display: block; /* 기본적으로 표시 */
@@ -84,6 +85,12 @@ def set_global_styles():
                 cursor: pointer;
         }
         
+        .expander {
+        max-width: 800px;  /* 원하는 최대 너비로 설정 */
+        width: 100%;        /* 가로 전체로 확장 */
+        }
+
+
         </style>
         """, unsafe_allow_html=True
     )

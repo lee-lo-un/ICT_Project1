@@ -108,6 +108,7 @@ def search_videos(query, year_range, month_start, month_end, max_results):
 
     return videos
 
+
 def search_comments(video_id):
     """특정 동영상의 댓글을 최대 100개까지 가져와 data 폴더에 JSON 파일로 저장"""
     comments = {} # 댓글을 저장할 리스트 초기화
@@ -123,6 +124,7 @@ def search_comments(video_id):
 
     # 응답에서 각 댓글 항목을 반복하여 댓글 내용 추출
     for item in response["items"]:
+
         #comment = item["snippet"]["topLevelComment"]["snippet"]["textDisplay"]
         #comments.append(comment) # 댓글을 리스트에 추가
         video_id = item["snippet"]["videoId"]  # video ID 가져오기 (키로 사용)
@@ -133,10 +135,13 @@ def search_comments(video_id):
             comments[video_id] = []  # 키가 없으면 리스트 초기화
         comments[video_id].append(comment)  # 댓글 추가
     
+
     # 댓글을 JSON 파일로 저장 (파일명: data/comments_{video_id}.json)
     file_path = f"data/comments_{video_id}.json"
     with open(file_path, "w", encoding="utf-8") as f:
         json.dump(comments, f, ensure_ascii=False, indent=4)
 
     # 상위 5개의 댓글 반환
+
     return {video_id: comments[video_id][:5]}
+

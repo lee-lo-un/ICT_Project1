@@ -21,6 +21,7 @@ def show_search(query):
     """검색 페이지 함수"""
     set_global_styles()
     initialize_session_state()  # 세션 상태 초기화
+
     max_results, year_range, (month_start_num, month_end_num), rating = sidebar_options()
 
     # 검색어가 입력되었을 때 결과 표시
@@ -42,6 +43,7 @@ def show_search(query):
     # 모달 창 표시
     if st.session_state.show_modal:
         show_modal()
+
 
 # 페이지가 직접 실행될 때만 show_search() 호출 (테스트용)
 if __name__ == "__main__":

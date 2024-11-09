@@ -10,3 +10,4 @@ YOUTUBE_API_KEY = "key value"
 ```
 3. 터미널 실행
 streamlit run app.py --server.runOnSave true
+

@@ -1,9 +1,11 @@
 import streamlit as st
 import random
+
 from utils.youtube_api import search_comments, get_trending_videos, search_videos
 from models.src.koBert_inf import main_analyze
 import config.config as config
 import json
+
 
 def sidebar_options():
     """사이드바에서 검색 옵션을 설정하고 반환합니다."""
@@ -78,6 +80,7 @@ def show_video_info(video, statistics):
         </div>
         """, unsafe_allow_html=True
     )
+    
     #json파일 저장될 때 까지 기다림
 
     show_emotion_bar_chart(statistics['positive'], statistics['neutral'], statistics['negative'])
@@ -166,7 +169,6 @@ def show_modal():
 
 
 
-
 def highlight_keywords(comment, positive_keywords, negative_keywords):
     # 키워드와 그에 해당하는 색상을 정의
     keyword_colors = {**dict.fromkeys(positive_keywords, 'red'), **dict.fromkeys(negative_keywords, 'blue')}
@@ -176,6 +178,7 @@ def highlight_keywords(comment, positive_keywords, negative_keywords):
         comment = comment.replace(keyword, f"<strong style='color:{color};'>{keyword}</strong>")
     
     return comment
+
 
 
 def show_comments(video_id, comment, statistics):
@@ -207,11 +210,14 @@ def show_comments(video_id, comment, statistics):
     st.write("대표 댓글:")
     for comment_element in comment[video_id]:
         icon = sentiment_icons.get(comment['emotion'], "😐")
+
         st.markdown(
             f"""
             <div class='comment-container'>
                 <span class='icon'>{icon}</span>
+
                 <div class='comment-text'>{highlight_keywords(comment_element, positive_keywords, negative_keywords)}</div>
+
             </div>
             """, unsafe_allow_html=True
         )
@@ -269,4 +275,5 @@ def show_search_results(videos, comments):
                 show_video_info(video,statistics)
             with col_comments: # 오른쪽 열 - 대표 댓글 표시
                 show_comments(video["video_id"], comment, statistics)
+
 
