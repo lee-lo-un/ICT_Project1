@@ -3,3 +3,7 @@ data/
 
 # Ignore environment variables file
 .env
+
+# Ignore __pycache__ directories
+*.pyc
+pycache/
