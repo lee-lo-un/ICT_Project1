@@ -29,6 +29,7 @@ def set_global_styles():
 
         .thumbnail {
             width: 100%;
+            border-radius:20px
         }
         .comment-container {
             display: flex;
@@ -45,44 +46,6 @@ def set_global_styles():
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-        }
-
-
-        /* 모달 스타일 */
-        #modal {
-            display: block; /* 기본적으로 표시 */
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: white;
-            border: 1px solid black;
-            padding: 20px;
-            z-index: 1000;
-            width: 80%;
-            max-width: 600px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
-        }
-        #overlay {
-                display: block;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
-                z-index: 999;
-        }
-        
-        /* 닫기 버튼 스타일 */
-        #modal button {
-                position: absolute;
-                top: 5px;
-                right: 5px;
-                border: none;
-                background: none;
-                font-size: 20px;
-                cursor: pointer;
         }
         
         .expander {

@@ -3,6 +3,8 @@ warnings.filterwarnings("ignore", category=UserWarning, module="mxnet.optimizer.
 import streamlit as st
 from pages.home import show_home
 from pages.search import show_search
+import streamlit as st
+
 
 def main():
     # 공통적인 레이아웃
