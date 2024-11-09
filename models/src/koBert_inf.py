@@ -12,6 +12,8 @@ from kobert_tokenizer import KoBERTTokenizer
 from transformers import BertModel
 from transformers.optimization import get_cosine_schedule_with_warmup
 import gluonnlp as nlp
+import json
+import os
 
 
 ## infer setup
@@ -71,7 +73,8 @@ class BERTClassifier(nn.Module):
 
 # trained model weight load 
 model = BERTClassifier(bertmodel, dr_rate = 0.5).to(device)
-model.load_state_dict(torch.load('../weight/kobert241107.pth'))
+model.load_state_dict(torch.load('models/weight/kobert241107.pth'))
+
 
 def inference(predict_sentence): 
 
@@ -99,17 +102,82 @@ def inference(predict_sentence):
 
             emotion = np.argmax(logits)
 
-            if emotion <= 3 or emotion >= 6:
-                test_evall = "부정"
-            elif emotion == 5:  # 행복
-                test_evall = "긍정"
-            elif emotion == 4:  # 중립
-                test_evall = "중립"
+            if emotion == 0:
+                test_eval="fear"
+            elif emotion == 1:
+                test_eval="surprise"
+            elif emotion == 2:
+                test_eval="anger"
+            elif emotion == 3:
+                test_eval="sadness"
+            elif emotion == 4:
+                test_eval="neutral"
+            elif emotion == 5:
+                test_eval="positive"
+            elif emotion == 6:
+                test_eval="disgust"
 
     return test_eval
 
-if __name__ == "__main__":
-    egs = ["시간이 갈수록 퍼거슨감독의 역량이 빛나보인다.", "민심을 무겁게 받아들인다는 문자 그대로의 뜻을 아니?", "역쉬 돈쓰는데는 아낌없는 한화~ㅋㅋㅋㅋ"]
-    for eg in egs : 
-        result = inference(eg) 
-        print(result)
+#분류한 json파일을 불러와 통계를 낸다
+def generate_statistics(video):
+    #넘겨받은 video_id를 통해 json파일을 구별하고 통계를 낸다
+    analyzed_file_path = f"data/analyzed_comments_{video['video_id']}.json"
+    if not os.path.exists(analyzed_file_path):
+        raise FileNotFoundError(f"Analyzed results for video ID {video['video_id']} not found.")
+
+    with open(analyzed_file_path, "r", encoding="utf-8") as f:
+        results = json.load(f)
+
+    #각 감정을 count한다
+    positive_count = sum(1 for result in results if result["emotion"] == "positive")
+    neutral_count = sum(1 for result in results if result["emotion"] == "neutral")
+    negative_count = sum(1 for result in results if result["emotion"] in ["fear"or"surprise"or"anger"or"sadness"or"disgust"])
+    fear_count = sum(1 for result in results if result["emotion"] == "fear")
+    surprise_count = sum(1 for result in results if result["emotion"] == "surprise")
+    anger_count = sum(1 for result in results if result["emotion"] == "anger")
+    sadness_count = sum(1 for result in results if result["emotion"] == "sadness")
+    disgust_count = sum(1 for result in results if result["emotion"] == "disgust")
+
+    #감정 통계 결과를 '감정':'수' 로 저장
+    statistics = {
+        "positive": positive_count,
+        "neutral": neutral_count,
+        "negative": negative_count,
+        "fear": fear_count,
+        "surprise":surprise_count,
+        "anger": anger_count,
+        "sadness": sadness_count,
+        "disgust": disgust_count
+        
+    }
+
+    print(f"Emotion statistics for video ID {video['video_id']}: {statistics}")
+
+    return statistics
+
+#감정을 분류하여 json파일로 저장.
+def main_analyze(video):
+    with open(f"data/comments_{video['video_id']}.json", "r", encoding="utf-8") as f:
+        egs = json.load(f)
+
+
+    results = []
+    for eg in egs:
+        result = inference(eg)
+        results.append({"comment": eg, "emotion": result})
+
+    # JSON파일에 감정 분류 결과를 저장한다
+    output_file_path = f"data/analyzed_comments_{video['video_id']}.json"
+    with open(output_file_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, ensure_ascii=False, indent=4)
+
+
+
+    print(f"Results saved to {output_file_path}")
+
+    # 분류된 감정을 통계낸 후 RETURN한다
+    return generate_statistics(video)
+
+
+

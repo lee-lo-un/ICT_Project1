@@ -3,3 +3,10 @@ data/
 
 # Ignore environment variables file
 .env
+
+# Ignore __pycache__ directories
+*.pyc
+pycache/
+
+models/weight/*
+models/weight/kobert241107.pth

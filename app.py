@@ -1,3 +1,5 @@
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="mxnet.optimizer.optimizer")
 import streamlit as st
 from pages.home import show_home
 from pages.search import show_search
