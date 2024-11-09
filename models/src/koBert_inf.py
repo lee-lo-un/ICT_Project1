@@ -15,7 +15,6 @@ import gluonnlp as nlp
 import json
 import os
 
-
 ## infer setup
 device = torch.device("cuda:0")
 tokenizer = KoBERTTokenizer.from_pretrained('skt/kobert-base-v1')
@@ -70,11 +69,9 @@ class BERTClassifier(nn.Module):
             out = self.dropout(pooler)
         return self.classifier(out)
     
-
 # trained model weight load 
-model = BERTClassifier(bertmodel, dr_rate = 0.5).to(device)
+model = BERTClassifier(bertmodel, dr_rate = 0.3).to(device)
 model.load_state_dict(torch.load('models/weight/kobert241107.pth'))
-
 
 def inference(predict_sentence): 
 
@@ -101,7 +98,6 @@ def inference(predict_sentence):
             logits = logits.detach().cpu().numpy()
 
             emotion = np.argmax(logits)
-
             if emotion == 0:
                 test_eval="fear"
             elif emotion == 1:
@@ -154,16 +150,18 @@ def generate_statistics(video):
 
     print(f"Emotion statistics for video ID {video['video_id']}: {statistics}")
 
+    sum_statistics(statistics)
+    
     return statistics
 
 #감정을 분류하여 json파일로 저장.
 def main_analyze(video):
     with open(f"data/comments_{video['video_id']}.json", "r", encoding="utf-8") as f:
         egs = json.load(f)
-
+    video_id=video['video_id']
 
     results = []
-    for eg in egs:
+    for eg in egs[video_id]:
         result = inference(eg)
         results.append({"comment": eg, "emotion": result})
 
@@ -172,12 +170,44 @@ def main_analyze(video):
     with open(output_file_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
 
-
-
     print(f"Results saved to {output_file_path}")
 
     # 분류된 감정을 통계낸 후 RETURN한다
     return generate_statistics(video)
+
+
+def sum_statistics(statistics):
+    # 파일 경로 정의
+    sum_statistics_file = "data/sum_comments_statistics.json"
+
+    # 누적 통계를 담을 딕셔너리 초기화
+    if os.path.exists(sum_statistics_file):
+        # 기존 파일이 존재하면 파일에서 통계를 불러옴
+        with open(sum_statistics_file, "r", encoding="utf-8") as f:
+            sum_statistics_data = json.load(f)
+    else:
+        # 파일이 없을 경우 초기화된 딕셔너리 생성
+        sum_statistics_data = {
+            "positive": 0,
+            "neutral": 0,
+            "negative": 0,
+            "fear": 0,
+            "surprise": 0,
+            "anger": 0,
+            "sadness": 0,
+            "disgust": 0
+        }
+
+    # 현재 통계를 누적 통계에 더함
+    for key in statistics:
+        if key in sum_statistics_data:
+            sum_statistics_data[key] += statistics[key]
+
+    # 합산된 통계를 파일에 저장
+    with open(sum_statistics_file, "w", encoding="utf-8") as f:
+        json.dump(sum_statistics_data, f, ensure_ascii=False, indent=4)
+
+    print(f"Updated cumulative statistics saved to {sum_statistics_file}")
 
 
 

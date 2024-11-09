@@ -5,6 +5,8 @@ from utils.youtube_api import search_comments, get_trending_videos, search_video
 from models.src.koBert_inf import main_analyze
 import config.config as config
 import json
+import streamlit as st
+from streamlit_modal import Modal
 
 
 def sidebar_options():
@@ -44,15 +46,16 @@ def sidebar_options():
 
 def show_emotion_bar_chart(positive_count, neutral_count, negative_count):
     """감정 비율을 막대 차트 형태로 표시합니다."""
-    total = positive_count + neutral_count + negative_count
+    total = positive_count + neutral_count + negative_count+1
+    
     if total > 0:
-        totla=total+300
+        total=total+300
         st.markdown(
             """
             <div style="display: flex; width: 100%; height: 20px;">
-                <div style="width: {positive}%; background-color: green; border-radius: 10px 0 0 10px;"></div>
-                <div style="width: {neutral}%; background-color: gray;"></div>
-                <div style="width: {negative}%; background-color: red; border-radius: 0 10px 10px 0;"></div>
+                <div style="width: {positive}%; background-color: green; border-radius: 10px;"></div>
+                <div style="width: {neutral}%; background-color: transparent; border-radius: 10px;"></div>
+                <div style="width: {negative}%; background-color: red; border-radius: 10px;"></div>
             </div>
             """.format(
                 positive=(positive_count+100 / total) * 100,
@@ -87,88 +90,6 @@ def show_video_info(video, statistics):
     temperature = statistics['positive'] - statistics['negative']+30
     st.write(f"🌡️ 온도: {temperature}")
 
-    # 감정 분석 버튼 클릭 시 세션 상태를 변경하여 모달 창을 표시
-    if st.button("감정 분석", key=f"analyze_{video['video_id']}"):
-        # 감정 이모티콘 통계 이미지 표시
-        emotions = {
-            '행복': statistics.get('happiness', 0),
-            '공포': statistics.get('fear', 0),
-            '놀람': statistics.get('surprise', 0),
-            '분노': statistics.get('anger', 0),
-            '슬픔': statistics.get('sadness', 0),
-            '혐오': statistics.get('disgust', 0),
-            '중립': statistics.get('neutral', 0)
-        }
-
-        emotion_icons = {
-            '행복': '😊',
-            '공포': '😨',
-            '놀람': '😲',
-            '분노': '😡',
-            '슬픔': '😢',
-            '혐오': '🤢',
-            '중립': '😐'
-        }
-        #이모티콘 나타내기
-        with st.expander("감정 분석 결과", expanded=True):
-            st.markdown("<div style='text-align: center; display: flex; justify-content: space-around; align-items: center;'>", unsafe_allow_html=True)
-            for emotion, count in emotions.items():
-                st.markdown(
-                    f"""
-                    <div style='display: inline-block; text-align: center; margin: 5px; padding: 5px;'>
-                        <div style='font-size: 40px;'>{emotion_icons[emotion]}</div>
-                        <div style='font-size: 14px;'>{emotion}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
-
-        st.session_state.show_modal = True
-        st.session_state.selected_video_id = video["video_id"]
-        #st.rerun()  # 상태 변경 후 앱을 다시 렌더링
-
-
-def show_modal():
-    """모달 창 표시"""
-    print("==============모달===========")
-    video_id = st.session_state.get("selected_video_id", None)
-    if st.session_state.get("show_modal", False):
-        #comments = st.session_state.comments[video_id]
-        #comments는  [{}, {}, {}] 형태이기에 next() 함수와 리스트 컴프리헨션을 사용
-        gen = (item[video_id] for item in st.session_state.comments if video_id in item)
-        comments = next(gen, [])  # 첫 번째 값을 추출하거나 없으면 빈 리스트 반환
-        sentiments = [random.choice(["긍정", "부정"]) for _ in comments]
-
-        # 모달 내용 구성
-        modal_html = """
-        <div id="overlay"></div>
-        <div id="modal">
-            <button onclick="document.getElementById('modal').style.display='none'; document.getElementById('overlay').style.display='none';">&#10006;</button>
-            <h3>댓글 및 감정 분석 결과</h3>
-            <ul>
-        """
-        for comment, sentiment in zip(comments, sentiments):
-            modal_html += f"<li class='comment-text'><strong>댓글:</strong> {comment} | <strong>감정:</strong> {sentiment}</li>"
-
-        modal_html += """
-            </ul>
-        </div>
-        """
-
-    # 모달 내용을 한 번에 출력
-    if st.session_state.get("show_modal", False):
-        st.markdown(modal_html, unsafe_allow_html=True)
-        # 닫기 버튼
-        if st.button("닫기", key=f"close_modal_{video_id}"):
-            st.session_state.show_modal = False
-            st.session_state.pop("selected_video_id", None)  # 상태 초기화
-            st.experimental_rerun()  # UI를 즉시 갱신하여 모달을 닫음
-
-
-
-
-
 def highlight_keywords(comment, positive_keywords, negative_keywords):
     # 키워드와 그에 해당하는 색상을 정의
     keyword_colors = {**dict.fromkeys(positive_keywords, 'red'), **dict.fromkeys(negative_keywords, 'blue')}
@@ -179,6 +100,48 @@ def highlight_keywords(comment, positive_keywords, negative_keywords):
     
     return comment
 
+# 감정 이모티콘 통계 이미지 표시 함수
+def make_emoji():
+    with open(f"data/sum_comments_statistics.json", "r", encoding="utf-8") as f:
+        statistics = json.load(f)
+
+    emotions = {
+        '행복': statistics.get('positive', 0),
+        '공포': statistics.get('fear', 0),
+        '놀람': statistics.get('surprise', 0),
+        '분노': statistics.get('anger', 0),
+        '슬픔': statistics.get('sadness', 0),
+        '혐오': statistics.get('disgust', 0),
+        '중립': statistics.get('neutral', 0)
+    }
+
+    emotion_icons = {
+        '행복': '😊',
+        '공포': '😨',
+        '놀람': '😲',
+        '분노': '😡',
+        '슬픔': '😢',
+        '혐오': '🤢',
+        '중립': '😐'
+    }
+
+    # HTML 코드 생성
+    emoji_html = """
+        <div style='display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap;'>
+    """
+
+    for emotion, count in emotions.items():
+        emoji_html += f"""
+            <div style='text-align: center; margin: 10px;'>
+                <div style='font-size: 40px;'>{emotion_icons[emotion]}</div>
+                <div style='font-size: 14px; color: #555;'>{emotion} ({count})</div>
+            </div>
+        """
+
+    emoji_html += "</div>"
+
+    # Streamlit의 components.html을 사용해 HTML을 렌더링
+    st.components.v1.html(emoji_html, height=150)
 
 
 def show_comments(video_id, comment, statistics):
@@ -188,11 +151,14 @@ def show_comments(video_id, comment, statistics):
     with open(f"data/analyzed_comments_{video_id}.json", "r", encoding="utf-8") as f:
         comments_data = json.load(f)
 
+    #부정적인 감정이 많으면 negative로 설정
+    if (statistics['negative']>statistics['positive']) and (statistics['negative']>statistics['neutral']):
+        selected_comments = [c for c in comments_data if c['emotion'] in ["fear","surprise","anger","sadness","disgust"]]
     # 가장 많은 감정 (긍정 부정 중립 중)이 무엇인지 찾아냄
-    common_emotion = max(statistics, key=statistics.get)
-
     # 가장 많은 감정의 댓글을 뽑아냄
-    selected_comments = [c for c in comments_data if c['emotion'] == common_emotion]
+    else:
+        common_emotion = max(statistics, key=statistics.get)
+        selected_comments = [c for c in comments_data if c['emotion'] == common_emotion]
 
     # 그중 5개만 뽑아냄
     selected_comments = selected_comments[:5]
@@ -204,20 +170,20 @@ def show_comments(video_id, comment, statistics):
         "neutral": "😐"
     }
 
-    positive_keywords = ['좋아요', '좋아', '좋다', '좋네', '사랑', '기쁘다', '기쁨', '고마워', '대박', '최고', '사랑해', '재밌어', '아름다워']
-    negative_keywords = ['싫어요', '싫어', '싫다', '싫네', '나쁜', '슬퍼', '슬픔', '아니', '최악', '화가나', '실망', '별로']
-    
+    # 댓글을 나타냄
     st.write("대표 댓글:")
-    for comment_element in comment[video_id]:
+    for comment in selected_comments:
         icon = sentiment_icons.get(comment['emotion'], "😐")
+
+        #부정적인 감정이 많으면 negative로 설정
+        if comment['emotion'] in ["fear","surprise","anger","sadness","disgust"]:
+            icon="👎"
 
         st.markdown(
             f"""
             <div class='comment-container'>
                 <span class='icon'>{icon}</span>
-
-                <div class='comment-text'>{highlight_keywords(comment_element, positive_keywords, negative_keywords)}</div>
-
+                <div class='comment-text'>{comment['comment']}</div>
             </div>
             """, unsafe_allow_html=True
         )
@@ -240,7 +206,7 @@ def show_trending_videos(num_video):
                 st.markdown(
                     f"""
                     <a href='https://www.youtube.com/watch?v={video["video_id"]}' target='_blank'>
-                        <img src='{video["thumbnail_url"]}' style='width:100%;'>
+                        <img src='{video["thumbnail_url"]}' style='width:100%; border-radius:20px '>
                     </a>
                     """, unsafe_allow_html=True
                 )
@@ -261,19 +227,30 @@ def show_trending_videos(num_video):
                 )
 
 def show_search_results(videos, comments):
-    # 동영상과 댓글을 세로로 나열하여 출력
+    # Create the emoji column container first, separate from video and comments
+    emoji_container = st.container()  # Container for the emoji to make sure it appears in a specific location
+
+    # Display videos and comments
     for video, comment in zip(videos, comments):
-        with st.container():
-            col_video, col_comments = st.columns([1, 2]) # 두 열 레이아웃 설정
+        # Create two columns for each video
+        col_video, col_comments = st.columns([3, 4])  # Set two columns for video and comments
 
-            #comments들 수집 후 저장.
-            #search_comments(video['video_id'])
-            #comments들 분석 저장. statistics엔 감정별 통계가 포함되어있음.
-            statistics=main_analyze(video)
+        # Collect comments and save them. Save comments analysis.
+        # statistics contains emotion analysis results for each video
+        statistics = main_analyze(video)
 
-            with col_video: # 왼쪽 열 - 비디오 정보 표시
-                show_video_info(video,statistics)
-            with col_comments: # 오른쪽 열 - 대표 댓글 표시
-                show_comments(video["video_id"], comment, statistics)
+        with col_video:  # Left column - display video information
+            show_video_info(video, statistics)
+
+        with col_comments:  # Right column - display representative comments
+            show_comments(video["video_id"], comment, statistics)
+
+        # Add a horizontal separator to differentiate between each video's results
+        st.write("---")
+
+    # After the loop is finished, display emojis in the emoji container at the top
+    with emoji_container:
+        make_emoji()
+
 
 
