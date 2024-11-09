@@ -7,3 +7,4 @@ data/
 # Ignore __pycache__ directories
 *.pyc
 pycache/
+
