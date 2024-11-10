@@ -31,13 +31,17 @@ def load_model(device):
     """BERT 모델과 가중치를 로드하는 함수"""
     bertmodel = BertModel.from_pretrained('skt/kobert-base-v1', return_dict=False)
     model = BERTClassifier(bertmodel, dr_rate=0.3).to(device)
+    updated_weight_path = 'models/weight/kobert241107_updated.pth'
+
+    if not os.path.exists(updated_weight_path):
+        # 가중치 업데이트 및 저장
+        state_dict = torch.load('models/weight/kobert241107.pth')
+        if "bert.embeddings.position_ids" not in state_dict:
+            state_dict["bert.embeddings.position_ids"] = torch.arange(0, 512).expand((1, -1))
+        torch.save(state_dict, updated_weight_path)
+        print("Model weights updated and saved.")
     
-    ## 최초의 한번 실행 가중치 업데이트
-    # state_dict = torch.load('models/weight/kobert241107.pth')
-    # if "bert.embeddings.position_ids" not in state_dict:
-    #     state_dict["bert.embeddings.position_ids"] = torch.arange(0, 512).expand((1, -1))
-    # torch.save(state_dict, 'models/weight/kobert241107_updated.pth')
-    model.load_state_dict(torch.load('models/weight/kobert241107_updated.pth'))
+    model.load_state_dict(torch.load(updated_weight_path))
 
     return model
 
