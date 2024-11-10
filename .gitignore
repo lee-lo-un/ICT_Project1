@@ -9,4 +9,4 @@ data/
 pycache/
 
 models/weight/*
-models/weight/kobert241107.pth
+models/weight/*.pth

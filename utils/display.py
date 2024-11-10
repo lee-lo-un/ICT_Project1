@@ -6,8 +6,7 @@ from models.src.koBert_inf import main_analyze
 import config.config as config
 import json
 import streamlit as st
-from streamlit_modal import Modal
-
+from utils.data_handle import get_top_words
 
 def sidebar_options():
     """사이드바에서 검색 옵션을 설정하고 반환합니다."""
@@ -34,15 +33,12 @@ def sidebar_options():
                 month_start = st.selectbox("Start Month", [f"{i}월" for i in range(1, 13)], index=0)
             with col2:
                 month_end = st.selectbox("End Month", [f"{i}월" for i in range(1, 13)], index=11)
-
-        # 평점 입력
-        rating = st.number_input("Rating", 0.0, 10.0, 0.0, step=1.0)
         
         # 월을 숫자로 변환하여 반환
         month_start_num = int(month_start[:-1])
         month_end_num = int(month_end[:-1])
 
-    return no_of_results, year_range, (month_start_num, month_end_num), rating
+    return no_of_results, year_range, (month_start_num, month_end_num)
 
 def show_emotion_bar_chart(positive_count, neutral_count, negative_count):
     """감정 비율을 막대 차트 형태로 표시합니다."""
@@ -67,7 +63,14 @@ def show_emotion_bar_chart(positive_count, neutral_count, negative_count):
 
 def show_video_info(video, statistics):
     """비디오 정보 표시 및 감정 분석 버튼 제공"""
-    
+    publish_date = video.get('publish_date', '0000-00-00')
+    publish_year = publish_date[:4]
+    publish_month = publish_date[5:7]
+    publish_day = publish_date[8:10]
+    title = video.get("title", "제목 없음")
+    tags = video.get('tags', [])
+    tags_display = ", ".join(tags[:5]) if isinstance(tags, list) else "태그 없음"
+
     # 썸네일과 제목을 링크로 표시 (제목 크기 및 높이 고정)
     st.markdown(
         f"""
@@ -76,19 +79,36 @@ def show_video_info(video, statistics):
         </a>
         """, unsafe_allow_html=True
     )
-    st.write(
+    # st.write(
+    #     f"""
+    #     <div class="video-title2">
+    #         {video['title']}
+    #     </div>
+    #     """, unsafe_allow_html=True
+    # )
+
+    # 제목과 날짜 표시
+    st.markdown(
         f"""
-        <div class="video-title2">
-            {video['title']}
+        <div>
+            <div class='video-title2'>
+                {title}
+            </div>
+            <p><strong>{publish_year}년 {publish_month}월 {publish_day}일</strong></p>
         </div>
         """, unsafe_allow_html=True
     )
     
     #json파일 저장될 때 까지 기다림
 
-    show_emotion_bar_chart(statistics['positive'], statistics['neutral'], statistics['negative'])
-    temperature = statistics['positive'] - statistics['negative']+30
+    show_emotion_bar_chart(statistics['positive'], statistics['neutral'], statistics['anger'])
+    # 체온 37을 기준 
+    temperature = 37 + statistics['positive'] - statistics['anger']
+    print("온도:",temperature,"statistics['positive']:",statistics['positive'],"statistics['negative']:",statistics['negative'])
     st.write(f"🌡️ 온도: {temperature}")
+    
+
+
 
 def highlight_keywords(comment, positive_keywords, negative_keywords):
     # 키워드와 그에 해당하는 색상을 정의
@@ -170,20 +190,23 @@ def show_comments(video_id, comment, statistics):
         "neutral": "😐"
     }
 
+    positive_keywords = ['좋아요', '좋아', '좋다', '좋고', '좋네', '사랑', '기쁘다', '기쁨', '고마워', '대박', '최고', '사랑해', '재밌어', '아름다워', '응원', '위로', '희망', '소망', '밝음', '']
+    negative_keywords = ['싫어요', '싫어', '싫다', '싫고', '싫네', '나쁜', '나쁨', '슬퍼', '슬픔', '아니', '최악', '화가나', '실망', '별로', '한심', '똥인지', '저런걸', '에라이', '절망', '비관', '박탈']
+
     # 댓글을 나타냄
     st.write("대표 댓글:")
     for comment in selected_comments:
         icon = sentiment_icons.get(comment['emotion'], "😐")
 
         #부정적인 감정이 많으면 negative로 설정
-        if comment['emotion'] in ["fear","surprise","anger","sadness","disgust"]:
+        if comment['emotion'] in ["anger"]:
             icon="👎"
 
         st.markdown(
             f"""
             <div class='comment-container'>
                 <span class='icon'>{icon}</span>
-                <div class='comment-text'>{comment['comment']}</div>
+                <div class='comment-text'>{highlight_keywords(comment['comment'], positive_keywords, negative_keywords)}</div>
             </div>
             """, unsafe_allow_html=True
         )
@@ -192,36 +215,47 @@ def show_comments(video_id, comment, statistics):
 # 유튜브 인기 급상승 동영상 
 def show_trending_videos(num_video):
     videos = get_trending_videos(num_video)
+    
+    if not videos:  # videos가 None이거나 빈 리스트인 경우 예외 처리
+        st.warning("트렌딩 비디오를 가져오는 데 실패했습니다.")
+        return
+
     # 동영상 데이터를 3개씩 나누어 열에 배치
     for i in range(0, len(videos), 3):
-        cols = st.columns(3) # 3개의 열 생성
+        cols = st.columns(3)  # 3개의 열 생성
         for j, video in enumerate(videos[i:i + 3]):
-            with cols[j]: # 각 열에 동영상 정보 표시
-                # 날자 추출
-                publish_date = video['publishedAt']  # 'YYYY-MM-DDTHH:MM:SSZ' 형식
-                publish_year = publish_date[:4]  # 연도 추출
-                publish_month = publish_date[5:7]  # 달 추출
-                publish_day = publish_date[8:10]  # 일 추출
+            with cols[j]:  # 각 열에 동영상 정보 표시
+                # 날짜 추출 및 기본값 설정
+                publish_date = video.get('publishedAt', '0000-00-00')
+                publish_year = publish_date[:4]
+                publish_month = publish_date[5:7]
+                publish_day = publish_date[8:10]
 
+                # 비디오 ID, 썸네일 URL, 제목, 태그 등 기본값 처리
+                video_id = video.get("video_id", "unknown")
+                thumbnail_url = video.get("thumbnail_url", "")
+                title = video.get("title", "제목 없음")
+                tags = video.get('tags', [])
+                tags_display = ", ".join(tags[:5]) if isinstance(tags, list) else "태그 없음"
+
+                # 비디오 정보 표시
                 st.markdown(
                     f"""
-                    <a href='https://www.youtube.com/watch?v={video["video_id"]}' target='_blank'>
-                        <img src='{video["thumbnail_url"]}' style='width:100%; border-radius:20px '>
+                    <a href='https://www.youtube.com/watch?v={video_id}' target='_blank'>
+                        <img src='{thumbnail_url}' style='width:100%; border-radius:20px '>
                     </a>
                     """, unsafe_allow_html=True
                 )
-                #st.write(f"**{publish_year}년 {publish_month}월 {publish_day}일**")  # 게시년도와 달 표시
-                #st.write(f"**{video['title']}**")
 
-                # 제목과 날짜 표시 (고정 높이 및 스타일 설정)
+                # 제목과 날짜 표시
                 st.markdown(
                     f"""
                     <div>
                         <div class='video-title2'>
-                            {video['title']}
+                            {title}
                         </div>
                         <p><strong>{publish_year}년 {publish_month}월 {publish_day}일</strong></p>
-                        <p>관련 태그: {", ".join(video['tags'][:5])}</p>
+                        <p>관련 태그: {tags_display}</p>
                     </div>
                     """, unsafe_allow_html=True
                 )
@@ -238,12 +272,42 @@ def show_search_results(videos, comments):
         # Collect comments and save them. Save comments analysis.
         # statistics contains emotion analysis results for each video
         statistics = main_analyze(video)
-
+        
         with col_video:  # Left column - display video information
             show_video_info(video, statistics)
 
         with col_comments:  # Right column - display representative comments
             show_comments(video["video_id"], comment, statistics)
+
+        # 댓글에서 가장 많이 등장한 단어 5개 추출
+        top_words = get_top_words(comment[video["video_id"]], config.NUM_TOP_WORDS)
+            
+        # 결과 출력
+        # for word, count in top_words:
+        #     st.text(f"{word}: {count}번")
+    
+        # 댓글 감정분석
+        #st.text(display_emotion_chart_scaled(statistics))
+        # 감정 데이터와 시각화 출력
+
+        # 'negative' 항목 제거
+        if 'negative' in statistics:
+            del statistics['negative']
+
+         # 댓글 top7 출력
+        word_counts_text = ', '.join([f"{word}({count})" for word, count in top_words])
+        formatted_text = format_word_counts(word_counts_text)
+        st.markdown(formatted_text, unsafe_allow_html=True)   
+        
+        # Streamlit에서 마크다운과 HTML을 사용하여 출력
+        st.markdown(
+            f"""
+            <div style="font-size: 18px; padding: 10px; border: 1px solid #ddd; border-radius: 5px;">
+                {display_emotion_chart_scaled(statistics)}
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         # Add a horizontal separator to differentiate between each video's results
         st.write("---")
@@ -252,5 +316,95 @@ def show_search_results(videos, comments):
     with emoji_container:
         make_emoji()
 
+def format_word_counts(word_counts_text):
+    # 단어와 숫자를 나누어 스타일 지정
+    formatted_text = ""
+    for item in word_counts_text.split(', '):
+        if '(' in item and ')' in item:  # 괄호로 숫자가 있는지 확인
+            word, count = item.split('(')  # 괄호 앞뒤로 분리
+            count = count.rstrip(')')  # 숫자 뒤의 닫는 괄호 제거
+            formatted_text += f"<span style='font-size:20px; color:blue;'>{word.strip()}</span> <span style='font-size:16px; color:gray;'>({count})</span>, "
+        else:
+            formatted_text += f"<span style='font-size:20px; color:blue;'>{item.strip()}</span>, "  # 숫자가 없는 경우
+    
+    # 마지막 ', ' 제거 후 반환
+    return formatted_text.rstrip(', ')
 
+def display_emotion_chart_scaled(emotion_data, max_bar_length=24):
+    # 전체 값의 합계를 계산하여 비율을 구함
+    total = sum(emotion_data.values())
+    
+    # 기호 정의
+    symbols = {
+        'neutral': '⬛',
+        'positive': '🟩',
+        'anger': '🟥',
+        'fear': '🟦',
+        'surprise': '🟨',
+        'sadness': '🟪',
+        'disgust': '🟫'
+    }
+    
+
+    # 가장 긴 감정명 길이를 구하여 정렬 기준 설정
+    max_emotion_length = max(len(emotion) for emotion in emotion_data.keys())
+    chart_lines = []
+    
+    for emotion, count in emotion_data.items():
+        # 비율을 계산하여 출력 길이를 조정
+        scaled_length = int((count / total) * max_bar_length) if total > 0 else 0
+        
+        # 감정에 해당하는 기호를 scaled_length만큼 반복하여 출력
+        if emotion in symbols:
+            bar = symbols[emotion] * scaled_length
+            # 감정명 길이를 기준으로 공백을 추가해 정렬
+            emotion_display = f"{emotion}({count}){' ' * (max_emotion_length - len(emotion))}:"
+            chart_lines.append(f"{emotion_display} {bar}")
+    
+    # 각 줄을 줄바꿈 없이 출력
+    return '<br>'.join(chart_lines)
+
+def display_emotion_chart_scaled(emotion_data, max_bar_length=35):
+    # 전체 값의 합계를 계산하여 비율을 구함
+    total = sum(emotion_data.values())
+    chart_lines = []
+
+    # 감정 아이콘 및 기호 정의
+    emotion_details = {
+        '중립': {'icon': '😐', 'symbol': '⬛'},
+        '행복': {'icon': '😊', 'symbol': '🟩'},
+        '분노': {'icon': '😡', 'symbol': '🟥'},
+        '혐오': {'icon': '🤢', 'symbol': '🟫'},
+        '공포': {'icon': '😨', 'symbol': '🟦'},
+        '놀람': {'icon': '😲', 'symbol': '🟨'},
+        '슬픔': {'icon': '😢', 'symbol': '🟪'},
+    }
+
+    emotion_translation = {
+    'neutral': '중립',
+    'positive': '행복',
+    'anger': '분노',
+    'disgust': '혐오',
+    'fear': '공포',
+    'surprise': '놀람',
+    'sadness': '슬픔',
+    }
+
+    for eng_emotion, count in emotion_data.items():
+        # 영어 키를 한글로 변환
+        emotion = emotion_translation.get(eng_emotion, eng_emotion)
+
+        # 비율을 계산하여 출력 길이를 조정
+        scaled_length = int((count / total) * max_bar_length) if total > 0 else 0
+
+        # 감정 아이콘과 기호를 사용하여 출력
+        if emotion in emotion_details:
+            icon = emotion_details[emotion]['icon']
+            symbol = emotion_details[emotion]['symbol']
+            bar = symbol * scaled_length
+            emotion_display = f"{icon} {emotion}({count}):"
+            chart_lines.append(f"{emotion_display} {bar}")
+
+    # 각 줄을 줄바꿈하여 반환
+    return '<br>'.join(chart_lines)
 

@@ -1,3 +1,4 @@
+import streamlit as st
 import torch  
 from torch.utils.data import Dataset, DataLoader  
 from transformers import BertTokenizer, BertForSequenceClassification, AdamW  
@@ -14,6 +15,7 @@ from transformers.optimization import get_cosine_schedule_with_warmup
 import gluonnlp as nlp
 import json
 import os
+import gc
 
 ## infer setup
 device = torch.device("cuda:0")
@@ -24,6 +26,20 @@ tok = nlp.data.BERTSPTokenizer(tokenizer, vocab, lower = False)
 max_len = 64
 batch_size = 64
 tok = tokenizer.tokenize
+
+def load_model(device):
+    """BERT 모델과 가중치를 로드하는 함수"""
+    bertmodel = BertModel.from_pretrained('skt/kobert-base-v1', return_dict=False)
+    model = BERTClassifier(bertmodel, dr_rate=0.3).to(device)
+    
+    ## 최초의 한번 실행 가중치 업데이트
+    # state_dict = torch.load('models/weight/kobert241107.pth')
+    # if "bert.embeddings.position_ids" not in state_dict:
+    #     state_dict["bert.embeddings.position_ids"] = torch.arange(0, 512).expand((1, -1))
+    # torch.save(state_dict, 'models/weight/kobert241107_updated.pth')
+    model.load_state_dict(torch.load('models/weight/kobert241107_updated.pth'))
+
+    return model
 
 class BERTDataset(Dataset):
     def __init__(self, dataset, sent_idx, label_idx, bert_tokenizer, vocab, max_len,
@@ -43,17 +59,17 @@ class BERTDataset(Dataset):
 class BERTClassifier(nn.Module):
     def __init__(self,
                  bert,
-                 hidden_size = 768,
-                 num_classes = 7,
-                 dr_rate = None,
-                 params = None):
+                 hidden_size=768,
+                 num_classes=7,
+                 dr_rate=None,
+                 params=None):
         super(BERTClassifier, self).__init__()
         self.bert = bert
         self.dr_rate = dr_rate
 
-        self.classifier = nn.Linear(hidden_size , num_classes)
+        self.classifier = nn.Linear(hidden_size, num_classes)
         if dr_rate:
-            self.dropout = nn.Dropout(p = dr_rate)
+            self.dropout = nn.Dropout(p=dr_rate)
 
     def gen_attention_mask(self, token_ids, valid_length):
         attention_mask = torch.zeros_like(token_ids)
@@ -64,34 +80,37 @@ class BERTClassifier(nn.Module):
     def forward(self, token_ids, valid_length, segment_ids):
         attention_mask = self.gen_attention_mask(token_ids, valid_length)
 
-        _, pooler = self.bert(input_ids = token_ids, token_type_ids = segment_ids.long(), attention_mask = attention_mask.float().to(token_ids.device),return_dict = False)
+        _, pooler = self.bert(input_ids=token_ids,
+                              token_type_ids=segment_ids.long(),
+                              attention_mask=attention_mask.float().to(token_ids.device),
+                              return_dict=False)
         if self.dr_rate:
             out = self.dropout(pooler)
         return self.classifier(out)
-    
-# trained model weight load 
-model = BERTClassifier(bertmodel, dr_rate = 0.3).to(device)
-model.load_state_dict(torch.load('models/weight/kobert241107.pth'))
 
-def inference(predict_sentence): 
 
+def inference(predict_sentence):
+    model = st.session_state.model
+    model.eval()
     data = [predict_sentence, '0']
     dataset_another = [data]
 
-    another_test = BERTDataset(dataset_another, 0, 1, tok, vocab, max_len, True, False) # tokenized input senten..
-    test_dataloader = torch.utils.data.DataLoader(another_test, batch_size = batch_size, num_workers = 5) # torch type
-    
-    model.eval() 
+    another_test = BERTDataset(dataset_another, 0, 1, tok, vocab, max_len, True, False)
+    test_dataloader = torch.utils.data.DataLoader(another_test, batch_size=batch_size, num_workers=0)  # num_workers 수정
+
     test_eval = ""
     score = 0.00
-    for batch_id, (token_ids, valid_length, segment_ids, label) in enumerate(test_dataloader):
-        token_ids = token_ids.long().to(device)
-        segment_ids = segment_ids.long().to(device)
+    with torch.no_grad():  # no_grad는 그래디언트 계산을 막아줌
+        for batch_id, (token_ids, valid_length, segment_ids, label) in enumerate(test_dataloader):
+            token_ids = token_ids.long().to(device)
+            segment_ids = segment_ids.long().to(device)
 
-        valid_length = valid_length
-        label = label.long().to(device)
+            # 유효 길이와 레이블도 GPU에 올림
+            valid_length = valid_length
+            label = label.long().to(device)
 
-        out = model(token_ids, valid_length, segment_ids)
+            # GPU 메모리 최적화를 위해 캐시 비우기
+            out = model(token_ids, valid_length, segment_ids)
 
         for i in out: # out = model(token_ids, valid_length, segment_ids)
             logits = i
@@ -128,7 +147,7 @@ def generate_statistics(video):
     #각 감정을 count한다
     positive_count = sum(1 for result in results if result["emotion"] == "positive")
     neutral_count = sum(1 for result in results if result["emotion"] == "neutral")
-    negative_count = sum(1 for result in results if result["emotion"] in ["fear"or"surprise"or"anger"or"sadness"or"disgust"])
+    negative_count = sum(1 for result in results if result["emotion"] in ["fear", "anger", "disgust"])
     fear_count = sum(1 for result in results if result["emotion"] == "fear")
     surprise_count = sum(1 for result in results if result["emotion"] == "surprise")
     anger_count = sum(1 for result in results if result["emotion"] == "anger")
@@ -147,8 +166,6 @@ def generate_statistics(video):
         "disgust": disgust_count
         
     }
-
-    print(f"Emotion statistics for video ID {video['video_id']}: {statistics}")
 
     sum_statistics(statistics)
     
@@ -170,7 +187,9 @@ def main_analyze(video):
     with open(output_file_path, "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=4)
 
-    print(f"Results saved to {output_file_path}")
+    # 메모리 해제 코드 추가
+    gc.collect()
+    torch.cuda.empty_cache()
 
     # 분류된 감정을 통계낸 후 RETURN한다
     return generate_statistics(video)
@@ -207,7 +226,6 @@ def sum_statistics(statistics):
     with open(sum_statistics_file, "w", encoding="utf-8") as f:
         json.dump(sum_statistics_data, f, ensure_ascii=False, indent=4)
 
-    print(f"Updated cumulative statistics saved to {sum_statistics_file}")
 
 
 

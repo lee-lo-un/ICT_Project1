@@ -23,8 +23,9 @@ def get_youtube_service():
             return get_youtube_service()
 
 # API 호출 예시 함수
-def search_videos(query, max_results=5):
+def search_videos_API(query, max_results=5):
     youtube = get_youtube_service()
+    response = None
     try:
         request = youtube.search().list(
             part="snippet",
@@ -36,3 +37,9 @@ def search_videos(query, max_results=5):
         return response.get('items', [])
     except HttpError as e:
         raise Exception(f"API 호출 중 오류 발생: {e}")
+    finally:
+        # 요청 후 추가적인 정리 작업 (로그 출력 등)
+        if response:
+            print("영상 API 요청이 성공.")
+        else:
+            print("영상 API 요청이 실패.")

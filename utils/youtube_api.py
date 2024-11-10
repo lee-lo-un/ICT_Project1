@@ -5,14 +5,17 @@ import os
 import json
 import glob
 import config.config as config 
+from googleapiclient.http import HttpRequest
+import httplib2
 
 # API 키 및 YouTube API 클라이언트 생성
 API_KEY = os.getenv("YOUTUBE_API_KEY")
 YOUTUBE_API_SERVICE_NAME = "youtube"
 YOUTUBE_API_VERSION = "v3"
 
+http = httplib2.Http(timeout=60)  # 타임아웃 시간을 60초로 설정
 # YouTube API 클라이언트 생성 (API 요청을 위한 클라이언트 객체 생성)
-youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=API_KEY)
+youtube = build(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION, developerKey=API_KEY, http=http)
 
 def clear_data_folder():
     """data 폴더 내 모든 JSON 파일 삭제"""
@@ -23,34 +26,54 @@ def clear_data_folder():
         for f in files:
             os.remove(f)
 
+@st.cache_data
 def get_trending_videos(max_results):
     """유튜브 인기 급상승 동영상 정보 가져오기"""
-    request = youtube.videos().list(
-        part="snippet,contentDetails,statistics",
-        chart="mostPopular",
-        regionCode="KR", # 원하는 지역 코드 설정
-        maxResults=max_results
-    )
-    response = request.execute()
-    videos = []
+    print("유튜브 인기 급상승 동영상")
+    response = None  # 초기화
+    try:
+        request = youtube.videos().list(
+            part="snippet,contentDetails,statistics",
+            chart="mostPopular",
+            regionCode="KR",  # 원하는 지역 코드 설정
+            maxResults=max_results
+        )
+        response = request.execute()
+        
+        videos = []
 
-    for item in response["items"]:
-        video_id = item["id"]
-        title = item["snippet"]["title"]
-        thumbnail_url = item["snippet"]["thumbnails"]["high"]["url"]
-        tags = item["snippet"].get("tags", ["태그 없음"]) # 태그가 없으면 '태그 없음'으로 표시
+        for item in response["items"]:
+            video_id = item["id"]
+            title = item["snippet"]["title"]
+            thumbnail_url = item["snippet"]["thumbnails"]["high"]["url"]
+            tags = item["snippet"].get("tags", ["태그 없음"])  # 태그가 없으면 '태그 없음'으로 표시
+            publish_date = item["snippet"]["publishedAt"]
 
-        publish_date = item["snippet"]["publishedAt"]
+            videos.append({
+                "video_id": video_id,
+                "title": title,
+                "thumbnail_url": thumbnail_url,
+                "tags": tags,
+                "publishedAt": publish_date
+            })
 
-        videos.append({
-            "video_id": video_id,
-            "title": title,
-            "thumbnail_url": thumbnail_url,
-            "tags": tags,
-            "publishedAt": publish_date
-        })
+        return videos
+    
+    except HttpError as e:
+        print(f"API 호출 중 오류 발생: {e}")
+        return []  # 빈 리스트 반환하여 호출 실패 처리
+    
+    except Exception as e:
+        print(f"예기치 않은 오류 발생: {e}")
+        return []  # 다른 예외 발생 시 빈 리스트 반환
 
-    return videos
+    finally:
+        # 요청 후 로그 출력 등 정리 작업
+        if response:
+            print("API request successful. ")
+        else:
+            print("API request failed. ")
+
 
 def search_videos(query, year_range, month_start, month_end, max_results):
     """
@@ -66,7 +89,10 @@ def search_videos(query, year_range, month_start, month_end, max_results):
     )
     # API 요청을 실행하고 응답을 받아오기
     response = request.execute()
-
+    if response:
+            print("API 요청이 성공적으로 종료되었습니다.")
+    else:
+        print("API 요청이 실패하거나 응답이 없습니다.")
     # 동영상 정보를 저장할 리스트 초기화
     videos = []
 
@@ -121,6 +147,10 @@ def search_comments(video_id):
         textFormat="plainText" # 댓글 형식을 일반 텍스트로 설정
     )
     response = request.execute()
+    if response:
+            print("comment request successful. ")
+    else:
+        print("comment request failed. ")
 
     # 응답에서 각 댓글 항목을 반복하여 댓글 내용 추출
     for item in response["items"]:

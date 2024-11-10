@@ -20,7 +20,7 @@ def show_search(query):
     set_global_styles()
     initialize_session_state()  # 세션 상태 초기화
 
-    max_results, year_range, (month_start_num, month_end_num), rating = sidebar_options()
+    max_results, year_range, (month_start_num, month_end_num) = sidebar_options()
 
     # 검색어가 입력되었을 때 실행
     if query:
